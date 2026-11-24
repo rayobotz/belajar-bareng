@@ -44,11 +44,11 @@ button.ulang{background:transparent}
 <div class="wrap">
 <h1>📱 Jawab di HP</h1>
 <div class="sub">Main N3 Bareng · <span id="judul-set">Set tersegel · 5 soal N3</span><br>Jawabanmu hanya ada di HP ini — tidak tampil di mana pun sampai sesi pencocokan.</div>
-<div id="bewara" style="display:none;background:#fef3c7;color:#92400e;border-radius:12px;padding:10px 14px;font-size:15px;margin-top:10px">⚠ Kamu sempat keluar dari lembar jawab — tercatat otomatis ya. Tetap jujur ya 🙏</div>
+
 <div id="daftar"></div>
 <div id="tempat-kode"></div>
 <button class="ulang" onclick="ulang()">↺ Ulangi dari awal (hapus semua jawaban di HP ini)</button>
-<div class="kecil putih" style="margin-top:10px">Aturan main: pilih jawaban → boleh ganti <b>satu kali</b> → setelah itu terkunci. Atau tekan Kunci bila sudah yakin.<br>Selama menjawab, jangan keluar dari halaman ini (pindah aplikasi / buka pencarian) — sistem mencatatnya otomatis dan catatan itu menempel di kodemu.</div>
+<div class="kecil putih" style="margin-top:10px">Aturan main: pilih jawaban → boleh ganti <b>satu kali</b> → setelah itu terkunci. Atau tekan Kunci bila sudah yakin.<br>Boleh berpindah antara video call dan halaman ini dengan bebas.</div>
 </div>
 <script>
 // HP-CORE-START
@@ -91,15 +91,12 @@ function gambar(){
     h += `</div>`;
   });
   el('daftar').innerHTML = h;
-  const kd = HP.kodeLengkap(ST);
+  const kd = HP.kode(ST);
   el('tempat-kode').innerHTML = kd
     ? `<div class="kode"><div style="color:#ccfbf1;font-size:15px;letter-spacing:1px">KODE JAWABANMU — sebutkan/tunjukkan ke layar bersama</div><div class="angka" style="font-size:40px;letter-spacing:6px">${kd}</div><div style="color:#ccfbf1;font-size:14px">Jangan diubah lagi. Sampai jumpa di sesi pencocokan 🔓</div></div>`
     : `<div class="kecil putih">Kode jawaban muncul di sini setelah kelima soal terkunci (${ST.kakonci.filter(Boolean).length}/5 terkunci).</div>`;
 }
 function pilih(qi, v){ qiAktif = qi; if(HP.pilih(ST, qi, v)){ HP.simpan(ST); gambar(); } }
-function deteksiKeluar(){ const now = Date.now(); if(now - catatTerakhir < 3000) return; catatTerakhir = now; HP.catatKeluar(ST, qiAktif); HP.simpan(ST); gambar(); const b = el('bewara'); if(b){ b.style.display = 'block'; setTimeout(()=>{ b.style.display = 'none'; }, 5000); } }
-document.addEventListener('visibilitychange', ()=>{ if(document.hidden) deteksiKeluar(); });
-window.addEventListener('blur', deteksiKeluar);
 function kunci(qi){ qiAktif = qi; if(HP.kunci(ST, qi)){ HP.simpan(ST); gambar(); } }
 function ulang(){ if(confirm('Hapus semua jawaban di HP ini dan ulangi dari awal?')){ HP.hapus(); ST = HP.baru(SOAL.length); gambar(); } }
 gambar();
