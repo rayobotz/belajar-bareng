@@ -46,9 +46,11 @@ button:disabled{opacity:.45;cursor:not-allowed}
 .pemenang .nama{font-size:30px;font-weight:900;color:var(--teal)}
 .kecil{font-size:13.5px;color:#555;text-align:center}
 .putih{color:#ccfbf1}
+#btn-suara{position:fixed;top:10px;right:10px;width:52px;height:52px;border-radius:50%;font-size:24px;padding:0;margin:0;background:var(--krem);border:2px solid var(--emas);box-shadow:0 4px 14px rgba(0,0,0,.35);z-index:50;line-height:1}
 .getar{animation:getar .4s}
 @keyframes getar{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
 </style></head><body>
+<button id="btn-suara" title="Suara: nyala / mati" aria-label="Suara nyala atau mati">🔊</button>
 <div class="wrap">
 <h1>⚔️ DUEL PEJUANG</h1>
 <div class="sub">Belajar Bareng Obotz · Pejuang Fukushishi<br>Balapan istilah kilat — yang pertama benar, serangannya kena!</div>
@@ -185,6 +187,7 @@ let ST = DUEL.baru();
 let myP = null, kodeRoom = "", namaSaya = "";
 let klien = null, topik = "";
 let soalTampil = -1, jawabanku = null, kunciUI = false;
+let detikTerakhir = 99, jingleRuangan = false, suaraAkhir = false;
 let timerInterval = null, jadwalQBerikut = null, jadwalToHost = null, prevHpSaya = DUEL.MAXHP;
 let brokerIdx = 0, pernahSambung = false;
 const BROKERS = ["wss://broker.hivemq.com:8884/mqtt", "wss://broker.emqx.io:8084/mqtt"];
@@ -235,6 +238,7 @@ function hati(n){ return "♥".repeat(Math.max(0, n)) + "♡".repeat(Math.max(0,
 
 function gambarTunggu(){
   const ada1 = !!ST.players.P1, ada2 = !!ST.players.P2;
+  if(ada1 && ada2 && !jingleRuangan){ jingleRuangan = true; SFX.gabung(); }
   el("isi-tunggu").innerHTML =
     `<div style="font-size:17px;margin:6px 0">🔴 <b>${esc(namaP("P1"))}</b> ${ada1 ? "✅" : "…menunggu"}</div>` +
     `<div style="font-size:17px;margin:6px 0">🔵 <b>${esc(namaP("P2"))}</b> ${ada2 ? "✅" : "…menunggu"}</div>`;
@@ -248,13 +252,14 @@ function gambarTunggu(){
 }
 
 function sesudahEvent(ev){
+  if(ev.t === "start" || ev.t === "reset") suaraAkhir = false;
   if(ST.phase === "lobby"){ tampil("layar-tunggu"); gambarTunggu(); }
   if(ST.phase === "battle"){ tampil("layar-duel"); gambarPetarung(); }
   if(ev.t === "q"){ siapkanSoal(); }
   if(ev.t === "ans" || ev.t === "to"){ gambarPetarung(); gambarBaner(); }
   if(ST.phase === "battle") hostMengemudi();
   if(ST.winner){ setTimeout(gambarMenang, 1400); }
-  if(ST.hp[myP] < prevHpSaya){ const k = el(myP === "P1" ? "kotak-P1" : "kotak-P2"); if(k){ k.classList.remove("getar"); void k.offsetWidth; k.classList.add("getar"); } if(navigator.vibrate) navigator.vibrate(200); }
+  if(ST.hp[myP] < prevHpSaya){ SFX.aduh(); const k = el(myP === "P1" ? "kotak-P1" : "kotak-P2"); if(k){ k.classList.remove("getar"); void k.offsetWidth; k.classList.add("getar"); } if(navigator.vibrate) navigator.vibrate(200); }
   prevHpSaya = ST.hp[myP];
 }
 
@@ -289,6 +294,8 @@ function siapkanSoal(){
 function tampilSoal(){
   const soal = BANK[ST.order[ST.qn]]; if(!soal) return;
   soalTampil = ST.qn;
+  detikTerakhir = 99;
+  SFX.siap();
   el("tempat-istilah").innerHTML = `<div class="jp"><ruby>${esc(soal.jp)}<rt>${esc(soal.yomi)}</rt></ruby></div><div class="kecil">Istilah ini artinya…?</div>`;
   const pil = acak(soal.pil);
   el("tempat-pilihan").innerHTML = pil.map(p => `<button class="pilihan" data-p="${esc(p)}">${esc(p)}</button>`).join("");
@@ -297,7 +304,9 @@ function tampilSoal(){
   timerInterval = setInterval(() => {
     const sisa = ST.qTs + DUEL.QTIME - Date.now();
     el("palang-waktu").style.width = Math.max(0, sisa / DUEL.QTIME * 100) + "%";
-    el("detik").textContent = Math.max(0, Math.ceil(sisa / 1000)) + " detik";
+    const tampilDetik = Math.max(0, Math.ceil(sisa / 1000));
+    el("detik").textContent = tampilDetik + " detik";
+    if(tampilDetik <= 3 && tampilDetik >= 1 && tampilDetik !== detikTerakhir){ detikTerakhir = tampilDetik; SFX.tik(); }
     if(sisa <= 0) clearInterval(timerInterval);
   }, 100);
 }
@@ -308,6 +317,7 @@ function jawab(pilihan, tombol){
   const ok = pilihan === soal.benar;
   jawabanku = pilihan;
   tombol.classList.add(ok ? "benarPilih" : "salahPilih");
+  if(ok) SFX.kena(); else SFX.meleset();
   if(!ok){ kunciUI = true; el("tempat-pilihan").querySelectorAll("button").forEach(b => b.disabled = true); }
   kirim({ t: "ans", n: ST.qn, p: myP, ok });
 }
@@ -332,6 +342,7 @@ function gambarBaner(){
 function gambarMenang(){
   if(!ST.winner) return;
   tampil("layar-menang");
+  if(!suaraAkhir){ suaraAkhir = true; if(ST.winner === "seri") SFX.seri(); else if(ST.winner === myP) SFX.menang(); else SFX.kalah(); }
   if(ST.winner === "seri"){
     el("trofi").textContent = "🤝"; el("nama-pemenang").textContent = "SERI!";
     el("ringkas-akhir").innerHTML = `Dua pejuang sama kuat.<br>🔴 ${esc(namaP("P1"))}: ${hati(ST.hp.P1)}<br>🔵 ${esc(namaP("P2"))}: ${hati(ST.hp.P2)}`;
@@ -341,6 +352,70 @@ function gambarMenang(){
     el("ringkas-akhir").innerHTML = `🔴 ${esc(namaP("P1"))}: ${hati(ST.hp.P1)}<br>🔵 ${esc(namaP("P2"))}: ${hati(ST.hp.P2)}`;
   }
 }
+
+// ===== EFEK SUARA — disintesis WebAudio, tanpa berkas audio eksternal =====
+const SFX = (() => {
+  let ctx = null, master = null;
+  let mati = false;
+  try{ mati = localStorage.getItem("duelSuaraMati") === "1"; }catch(e){}
+  function ac(){
+    if(mati) return null;
+    try{
+      if(!ctx){
+        const AC = (typeof AudioContext !== "undefined") ? AudioContext : (typeof webkitAudioContext !== "undefined" ? webkitAudioContext : null);
+        if(!AC) return null;
+        ctx = new AC();
+        master = ctx.createGain(); master.gain.value = 0.5; master.connect(ctx.destination);
+      }
+      if(ctx.state === "suspended") ctx.resume();
+      return ctx;
+    }catch(e){ return null; }
+  }
+  function nada(freq, t0, dur, tipe, vol, geserKe){
+    const c = ac(); if(!c) return;
+    const o = c.createOscillator(), g = c.createGain();
+    const mulai = c.currentTime + t0;
+    o.type = tipe || "triangle";
+    o.frequency.setValueAtTime(freq, mulai);
+    if(geserKe) o.frequency.exponentialRampToValueAtTime(Math.max(30, geserKe), mulai + dur);
+    g.gain.setValueAtTime(0.0001, mulai);
+    g.gain.exponentialRampToValueAtTime(vol || 0.5, mulai + 0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001, mulai + dur);
+    o.connect(g); g.connect(master);
+    o.start(mulai); o.stop(mulai + dur + 0.05);
+  }
+  function urutan(list, tipe, vol){ list.forEach(n => nada(n[0], n[1], n[2], tipe, vol)); }
+  return {
+    get mati(){ return mati; },
+    setMati(v){
+      mati = !!v;
+      try{ localStorage.setItem("duelSuaraMati", mati ? "1" : "0"); }catch(e){}
+      if(mati && ctx){ try{ ctx.close(); }catch(e){} ctx = null; master = null; }
+    },
+    bangun(){ ac(); },
+    blip(){ nada(700, 0, 0.07, "square", 0.18); },
+    gabung(){ urutan([[659, 0, 0.12], [880, 0.1, 0.22]], "triangle", 0.45); },
+    siap(){ urutan([[988, 0, 0.09], [1319, 0.09, 0.17]], "triangle", 0.4); },
+    kena(){ nada(180, 0, 0.16, "sine", 0.9, 55); urutan([[523, 0.03, 0.1], [659, 0.11, 0.1], [784, 0.19, 0.1], [1047, 0.27, 0.24]], "square", 0.28); },
+    meleset(){ nada(320, 0, 0.28, "sawtooth", 0.22, 110); },
+    aduh(){ urutan([[392, 0, 0.12], [311, 0.11, 0.26]], "triangle", 0.5); },
+    tik(){ nada(1200, 0, 0.04, "square", 0.15); },
+    menang(){ urutan([[523, 0, 0.13], [659, 0.12, 0.13], [784, 0.24, 0.13], [1047, 0.36, 0.3], [784, 0.66, 0.12], [1047, 0.78, 0.44]], "square", 0.3); },
+    kalah(){ urutan([[440, 0, 0.2], [392, 0.2, 0.2], [330, 0.4, 0.4]], "sine", 0.35); },
+    seri(){ urutan([[523, 0, 0.15], [523, 0.18, 0.27]], "sine", 0.35); }
+  };
+})();
+
+function segarkanTombolSuara(){ el("btn-suara").textContent = SFX.mati ? "🔇" : "🔊"; }
+el("btn-suara").onclick = () => { SFX.setMati(!SFX.mati); segarkanTombolSuara(); if(!SFX.mati) SFX.blip(); };
+segarkanTombolSuara();
+// AudioContext baru boleh berbunyi setelah interaksi pertama pengguna
+document.addEventListener("pointerdown", () => SFX.bangun(), { once: true });
+// blip pendek untuk klik tombol umum (tombol jawaban punya suara sendiri)
+document.addEventListener("click", (e) => {
+  const b = e.target && e.target.closest ? e.target.closest("button") : null;
+  if(b && b.id !== "btn-suara" && !b.classList.contains("pilihan")) SFX.blip();
+});
 
 sambung();
 </script>
