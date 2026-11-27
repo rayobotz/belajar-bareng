@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duel Pejuang — Belajar Bareng Obotz</title>
+<script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<style>
+:root{--teal:#0f766e;--emas:#f59e0b;--krem:#fefef8;--merah:#dc2626;--biru:#2563eb}
+*{box-sizing:border-box}
+body{font-family:"Hiragino Sans","Noto Sans JP","Noto Sans",sans-serif;margin:0;padding:16px 14px 34px;font-size:19px;color:#1c2420;background:radial-gradient(700px 340px at 50% -100px,#14655c 0%,#0b2220 60%,#071816 100%);min-height:100vh}
+.wrap{max-width:520px;margin:0 auto}
+h1{color:#fff;text-align:center;font-size:27px;margin:10px 0 0;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+.sub{color:#ccfbf1;text-align:center;font-size:14.5px;margin:4px 0 14px}
+.kartu{background:var(--krem);border-radius:16px;padding:16px;margin:12px 0;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+label{font-size:14px;font-weight:700;color:var(--teal);display:block;margin:10px 0 4px}
+input{font:inherit;width:100%;padding:12px;border:1.5px solid var(--teal);border-radius:12px;background:#fff}
+input.kode{font-size:30px;text-align:center;letter-spacing:10px;font-weight:800}
+button{font:inherit;cursor:pointer;border-radius:12px;border:1.5px solid var(--teal);background:#fff;color:var(--teal);padding:13px 0;width:100%;font-weight:700;margin-top:10px;transition:transform .08s}
+button:active{transform:scale(.96)}
+button.utama{background:var(--teal);color:#fff}
+button.emas{background:var(--emas);border-color:var(--emas);color:#451a03}
+button:disabled{opacity:.45;cursor:not-allowed}
+.kodebesar{background:#08201d;color:#fbbf24;border-radius:16px;text-align:center;padding:18px 10px;font-size:52px;font-weight:800;letter-spacing:14px;margin:12px 0}
+.statusnet{text-align:center;color:#fbbf24;font-size:13.5px;min-height:18px}
+.petarung{display:flex;gap:10px}
+.petarung .kotak{flex:1;border-radius:14px;padding:10px 12px;color:#fff;box-shadow:0 6px 18px rgba(0,0,0,.3)}
+.kotak.merah{background:linear-gradient(160deg,#991b1b,#dc2626)}
+.kotak.biru{background:linear-gradient(160deg,#1e3a8a,#2563eb)}
+.kotak .nm{font-weight:800;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kotak .hp{font-size:21px;letter-spacing:2px}
+.kotak .sudut{font-size:11.5px;opacity:.85;font-weight:700;letter-spacing:1px}
+.vs{align-self:center;color:var(--emas);font-weight:900;font-size:20px;text-shadow:0 2px 8px rgba(0,0,0,.5)}
+.istilah{text-align:center;padding:20px 10px 8px}
+.istilah .jp{font-size:40px;font-weight:800;color:#0b2220;line-height:1.5}
+.istilah rt{font-size:15px;color:var(--teal);font-weight:700}
+.baner{border-radius:12px;padding:11px 14px;text-align:center;font-weight:800;margin:10px 0;display:none}
+.baner.kena{background:#dcfce7;color:#166534;display:block}
+.baner.meleset{background:#fee2e2;color:#991b1b;display:block}
+.baner.netral{background:#fef3c7;color:#92400e;display:block}
+.waktu{height:12px;background:#e7e5e4;border-radius:99px;overflow:hidden;margin:8px 0 2px}
+.waktu>i{display:block;height:100%;background:linear-gradient(90deg,var(--emas),#ef4444);width:100%}
+.detik{text-align:right;font-size:13px;color:#555;font-weight:700}
+.pilihan{display:block;width:100%;text-align:left;padding:16px 14px;margin:8px 0;font-size:18.5px;font-weight:600;background:#fff;border:2px solid var(--teal);color:#134e4a;border-radius:14px}
+.pilihan.benarPilih{background:#dcfce7;border-color:#16a34a}
+.pilihan.salahPilih{background:#fee2e2;border-color:#dc2626}
+.pemenang{text-align:center;padding:26px 16px}
+.pemenang .trofi{font-size:64px}
+.pemenang .nama{font-size:30px;font-weight:900;color:var(--teal)}
+.kecil{font-size:13.5px;color:#555;text-align:center}
+.putih{color:#ccfbf1}
+.getar{animation:getar .4s}
+@keyframes getar{0%,100%{transform:translateX(0)}25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+</style></head><body>
+<div class="wrap">
+<h1>⚔️ DUEL PEJUANG</h1>
+<div class="sub">Belajar Bareng Obotz · Pejuang Fukushishi<br>Balapan istilah kilat — yang pertama benar, serangannya kena!</div>
+<div class="statusnet" id="statusnet">Menghubungkan…</div>
+
+<!-- LOBI -->
+<div id="layar-lobi">
+  <div class="kartu">
+    <label for="nama">Nama pejuangmu</label>
+    <input id="nama" maxlength="16" placeholder="mis. Ray" autocomplete="off">
+    <button class="utama" id="btn-buat">🛡️ Buat Ruangan (jadi Pejuang Merah)</button>
+    <label for="kode" style="margin-top:18px">Punya kode ruangan dari teman?</label>
+    <input id="kode" class="kode" maxlength="4" inputmode="numeric" placeholder="0000">
+    <button id="btn-gabung">⚔️ Gabung (jadi Pejuang Biru)</button>
+    <div class="kecil" style="margin-top:12px">Satu ruangan dua pejuang. Kode ruangan 4 angka — sebutkan ke temanmu lewat Meet atau WA.</div>
+  </div>
+</div>
+
+<!-- TUNGGU -->
+<div id="layar-tunggu" style="display:none">
+  <div class="kartu" style="text-align:center">
+    <div class="kecil">KODE RUANGANMU — sebutkan ke lawanmu</div>
+    <div class="kodebesar" id="kode-ruangan">----</div>
+    <div id="isi-tunggu"></div>
+    <button class="emas" id="btn-mulai" style="display:none">🔥 MULAI DUEL</button>
+    <div class="kecil" id="catatan-tunggu"></div>
+  </div>
+</div>
+
+<!-- DUEL -->
+<div id="layar-duel" style="display:none">
+  <div class="petarung">
+    <div class="kotak merah" id="kotak-P1"><div class="sudut">SUDUT MERAH</div><div class="nm" id="nama-P1">Pejuang 1</div><div class="hp" id="hp-P1"></div></div>
+    <div class="vs">VS</div>
+    <div class="kotak biru" id="kotak-P2"><div class="sudut">SUDUT BIRU</div><div class="nm" id="nama-P2">Pejuang 2</div><div class="hp" id="hp-P2"></div></div>
+  </div>
+  <div class="kartu">
+    <div class="kecil" id="info-soal">Bersiap…</div>
+    <div class="baner" id="baner"></div>
+    <div class="istilah" id="tempat-istilah"></div>
+    <div class="waktu"><i id="palang-waktu"></i></div>
+    <div class="detik" id="detik"></div>
+    <div id="tempat-pilihan"></div>
+  </div>
+</div>
+
+<!-- MENANG -->
+<div id="layar-menang" style="display:none">
+  <div class="kartu pemenang">
+    <div class="trofi" id="trofi">🏆</div>
+    <div class="kecil">PEJUANG MENANG</div>
+    <div class="nama" id="nama-pemenang">—</div>
+    <div id="ringkas-akhir" style="margin:10px 0"></div>
+    <button class="utama" id="btn-lagi">🔁 Main Lagi</button>
+    <div class="kecil" style="margin-top:10px">Hasil duel hanya terlihat oleh kalian berdua di dalam game ini — tidak disimpan dan tidak diumumkan ke mana pun.</div>
+  </div>
+</div>
+
+<div class="kecil putih" style="margin-top:14px">Aturan: tiap pejuang punya 5 nyawa. Jawaban benar pertama = serangan kena, nyawa lawan −1. Jawaban salah = terkunci untuk soal itu. Satu soal 10 detik. Bank soal v1: istilah 認知症 (demensia).</div>
+</div>
+
+<script>
+// DUEL-CORE-START
+const DUEL = (() => {
+  const MAXHP = 5, QTIME = 10000;
+  function baru(){ return { players:{}, started:false, order:[], qn:-1, qOpen:false, qTs:0, resolved:{}, locked:{}, hp:{P1:MAXHP, P2:MAXHP}, winner:null, phase:"lobby" }; }
+  function lawan(p){ return p === "P1" ? "P2" : "P1"; }
+  function cekAkhirBank(st){
+    if(st.started && !st.winner && st.order.length > 0 && st.qn === st.order.length - 1 && !st.qOpen && st.resolved[st.qn] !== undefined){
+      st.winner = st.hp.P1 === st.hp.P2 ? "seri" : (st.hp.P1 > st.hp.P2 ? "P1" : "P2");
+      st.phase = "selesai";
+    }
+  }
+  function apply(st, ev){
+    if(!ev || !ev.t) return st;
+    switch(ev.t){
+      case "join":
+        if(!st.players[ev.p]) st.players[ev.p] = { name: String(ev.name || ev.p).slice(0, 24) };
+        break;
+      case "start":
+        st.started = true; st.order = (ev.order || []).slice();
+        st.hp = { P1: MAXHP, P2: MAXHP }; st.resolved = {}; st.locked = {};
+        st.qn = -1; st.qOpen = false; st.winner = null; st.phase = "battle";
+        break;
+      case "q":
+        if(st.phase !== "battle" || st.winner) break;
+        st.qn = ev.n; st.qTs = ev.ts || 0; st.qOpen = true; st.locked = {};
+        break;
+      case "ans": {
+        if(!st.qOpen || ev.n !== st.qn || st.resolved[ev.n] !== undefined) break;
+        if(ev.ok){
+          st.resolved[ev.n] = ev.p;
+          st.hp[lawan(ev.p)] = Math.max(0, st.hp[lawan(ev.p)] - 1);
+          st.qOpen = false;
+          if(st.hp[lawan(ev.p)] <= 0){ st.winner = ev.p; st.phase = "selesai"; }
+        } else {
+          st.locked[ev.p] = true;
+          if(st.locked.P1 && st.locked.P2){ st.resolved[ev.n] = "none"; st.qOpen = false; }
+        }
+        break; }
+      case "to":
+        if(st.qOpen && ev.n === st.qn && st.resolved[ev.n] === undefined){ st.resolved[ev.n] = "none"; st.qOpen = false; }
+        break;
+      case "reset": {
+        const pl = st.players; const s = baru(); s.players = pl; return s; }
+    }
+    cekAkhirBank(st);
+    return st;
+  }
+  return { baru, apply, MAXHP, QTIME, lawan };
+})();
+// DUEL-CORE-END
+
+const BANK = [
+ { jp:"せん妄", yomi:"せんもう", benar:"Kebingungan akut yang muncul tiba-tiba dan naik-turun", pil:["Kebingungan akut yang muncul tiba-tiba dan naik-turun","Penurunan ingatan perlahan karena penuaan","Melihat sesuatu yang sebenarnya tidak ada","Keyakinan salah yang tidak bisa dikoreksi"] },
+ { jp:"認知症", yomi:"にんちしょう", benar:"Penurunan kemampuan berpikir dan mengingat yang mengganggu aktivitas sehari-hari", pil:["Penurunan kemampuan berpikir dan mengingat yang mengganggu aktivitas sehari-hari","Lupa biasa karena faktor usia","Gangguan menelan makanan dan minuman","Berjalan mondar-mandir tanpa tujuan"] },
+ { jp:"アルツハイマー型認知症", yomi:"あるつはいまーがたにんちしょう", benar:"Jenis demensia paling sering, diawali gangguan ingatan baru", pil:["Jenis demensia paling sering, diawali gangguan ingatan baru","Demensia akibat stroke yang berulang","Demensia akibat kerusakan bagian depan otak","Kebingungan akut yang muncul tiba-tiba"] },
+ { jp:"幻覚", yomi:"げんかく", benar:"Melihat atau mendengar sesuatu yang sebenarnya tidak ada", pil:["Melihat atau mendengar sesuatu yang sebenarnya tidak ada","Merasa barangnya dicuri orang","Tidak mengenali waktu dan tempat","Sulit merencanakan kegiatan"] },
+ { jp:"妄想", yomi:"もうそう", benar:"Keyakinan salah yang kuat dan tidak bisa dikoreksi", pil:["Keyakinan salah yang kuat dan tidak bisa dikoreksi","Melihat sesuatu yang sebenarnya tidak ada","Gangguan mengingat kejadian baru","Gejala inti yang dialami semua penderita demensia"] },
+ { jp:"見当識障害", yomi:"けんとうしきしょうがい", benar:"Tidak mengenali waktu, tempat, atau orang di sekitar", pil:["Tidak mengenali waktu, tempat, atau orang di sekitar","Sulit menelan makanan","Berjalan tanpa tujuan yang jelas","Sulit mengendalikan buang air"] },
+ { jp:"記憶障害", yomi:"きおくしょうがい", benar:"Gangguan mengingat, terutama kejadian yang baru saja terjadi", pil:["Gangguan mengingat, terutama kejadian yang baru saja terjadi","Tidak mengenali tempat yang familiar","Sulit menyusun langkah-langkah memasak","Melihat bayangan orang yang tidak ada"] },
+ { jp:"実行機能障害", yomi:"じっこうきのうしょうがい", benar:"Sulit merencanakan dan menjalankan langkah kegiatan, misalnya memasak", pil:["Sulit merencanakan dan menjalankan langkah kegiatan, misalnya memasak","Lupa kejadian yang baru terjadi","Keyakinan merasa dimusuhi orang lain","Gangguan menelan hingga mudah tersedak"] },
+ { jp:"中核症状", yomi:"ちゅうかくしょうじょう", benar:"Gejala inti demensia yang dialami semua penderita, seperti gangguan ingatan", pil:["Gejala inti demensia yang dialami semua penderita, seperti gangguan ingatan","Gejala perilaku seperti gelisah dan berkelana","Kebingungan akut yang naik-turun","Gangguan tidur yang hanya muncul malam hari"] },
+ { jp:"周辺症状", yomi:"しゅうへんしょうじょう", benar:"Gejala perilaku dan psikologis, seperti gelisah, berkelana, mudah marah", pil:["Gejala perilaku dan psikologis, seperti gelisah, berkelana, mudah marah","Gejala inti berupa gangguan ingatan","Kelumpuhan separuh badan","Gangguan menelan makanan"] },
+ { jp:"徘徊", yomi:"はいかい", benar:"Berjalan mondar-mandir tanpa tujuan yang jelas", pil:["Berjalan mondar-mandir tanpa tujuan yang jelas","Berteriak memanggil orang di malam hari","Menolak dibantu mandi dan makan","Tidur terus sepanjang hari"] },
+ { jp:"嚥下障害", yomi:"えんげしょうがい", benar:"Gangguan menelan makanan atau minuman, mudah tersedak", pil:["Gangguan menelan makanan atau minuman, mudah tersedak","Gangguan mengingat nama orang","Sulit mengenali waktu dan tempat","Berjalan tanpa tujuan"] }
+];
+
+function el(id){ return document.getElementById(id); }
+function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function acak(a){ const x = a.slice(); for(let i = x.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [x[i], x[j]] = [x[j], x[i]]; } return x; }
+
+let ST = DUEL.baru();
+let myP = null, kodeRoom = "", namaSaya = "";
+let klien = null, topik = "";
+let soalTampil = -1, jawabanku = null, kunciUI = false;
+let timerInterval = null, jadwalQBerikut = null, jadwalToHost = null, prevHpSaya = DUEL.MAXHP;
+let brokerIdx = 0, pernahSambung = false;
+const BROKERS = ["wss://broker.hivemq.com:8884/mqtt", "wss://broker.emqx.io:8084/mqtt"];
+
+function setStatusNet(teks){ el("statusnet").textContent = teks; }
+function sambung(){
+  if(typeof mqtt === "undefined"){ setStatusNet("⚠ Pustaka jaringan gagal dimuat — periksa koneksi internet, lalu muat ulang halaman."); return; }
+  try{ if(klien){ klien.end(true); } }catch(e){}
+  const url = BROKERS[brokerIdx];
+  klien = mqtt.connect(url, { clientId: "pejuang-" + Math.random().toString(36).slice(2, 10), clean: true, connectTimeout: 9000, reconnectPeriod: 3000 });
+  klien.on("connect", () => { pernahSambung = true; setStatusNet("🟢 Terhubung — siap bertarung"); if(topik) klien.subscribe(topik); });
+  klien.on("message", (t, msg) => { let ev; try{ ev = JSON.parse(msg.toString()); }catch(e){ return; } ST = DUEL.apply(ST, ev); sesudahEvent(ev); });
+  klien.on("error", () => { if(!pernahSambung && brokerIdx < BROKERS.length - 1){ brokerIdx++; sambung(); } });
+  klien.on("offline", () => setStatusNet("🟡 Koneksi terputus — menyambung ulang…"));
+  klien.on("reconnect", () => setStatusNet("🟡 Menyambung ulang…"));
+}
+function kirim(ev){ if(klien && klien.connected) klien.publish(topik, JSON.stringify(ev)); }
+
+function masukRuangan(sebagai, kode){
+  namaSaya = (el("nama").value || "").trim() || (sebagai === "P1" ? "Pejuang 1" : "Pejuang 2");
+  myP = sebagai; kodeRoom = kode; topik = "obotz/duel/v1/" + kode;
+  if(klien && klien.connected) klien.subscribe(topik);
+  el("kode-ruangan").textContent = kode;
+  tampil("layar-tunggu");
+  // beri waktu subscribe, lalu umumkan kehadiran (diulang sekali untuk keandalan)
+  setTimeout(() => kirim({ t: "join", p: myP, name: namaSaya }), 350);
+  setTimeout(() => kirim({ t: "join", p: myP, name: namaSaya }), 1400);
+  gambarTunggu();
+}
+el("btn-buat").onclick = () => { masukRuangan("P1", String(Math.floor(1000 + Math.random() * 9000))); };
+el("btn-gabung").onclick = () => {
+  const k = (el("kode").value || "").trim();
+  if(!/^\d{4}$/.test(k)){ alert("Kode ruangan 4 angka — minta ke temanmu yang membuat ruangan."); return; }
+  masukRuangan("P2", k);
+};
+el("btn-mulai").onclick = () => {
+  if(myP !== "P1") return;
+  const order = acak(BANK.map((_, i) => i));
+  kirim({ t: "start", order });
+};
+el("btn-lagi").onclick = () => { kirim({ t: "reset" }); };
+
+function tampil(id){
+  ["layar-lobi","layar-tunggu","layar-duel","layar-menang"].forEach(x => el(x).style.display = x === id ? "block" : "none");
+}
+function namaP(p){ return ST.players[p] ? ST.players[p].name : (p === "P1" ? "Pejuang 1" : "Pejuang 2"); }
+function hati(n){ return "♥".repeat(Math.max(0, n)) + "♡".repeat(Math.max(0, DUEL.MAXHP - n)); }
+
+function gambarTunggu(){
+  const ada1 = !!ST.players.P1, ada2 = !!ST.players.P2;
+  el("isi-tunggu").innerHTML =
+    `<div style="font-size:17px;margin:6px 0">🔴 <b>${esc(namaP("P1"))}</b> ${ada1 ? "✅" : "…menunggu"}</div>` +
+    `<div style="font-size:17px;margin:6px 0">🔵 <b>${esc(namaP("P2"))}</b> ${ada2 ? "✅" : "…menunggu"}</div>`;
+  if(myP === "P1"){
+    el("btn-mulai").style.display = ada2 ? "block" : "none";
+    el("catatan-tunggu").textContent = ada2 ? "Lawan sudah masuk — tekan MULAI DUEL!" : "Sebutkan kode di atas ke lawanmu, lalu tunggu dia gabung.";
+  } else {
+    el("btn-mulai").style.display = "none";
+    el("catatan-tunggu").textContent = ada1 ? "Kamu sudah masuk. Tunggu Pejuang Merah menekan MULAI DUEL…" : "Menghubungi ruangan… pastikan kodenya benar.";
+  }
+}
+
+function sesudahEvent(ev){
+  if(ST.phase === "lobby"){ tampil("layar-tunggu"); gambarTunggu(); }
+  if(ST.phase === "battle"){ tampil("layar-duel"); gambarPetarung(); }
+  if(ev.t === "q"){ siapkanSoal(); }
+  if(ev.t === "ans" || ev.t === "to"){ gambarPetarung(); gambarBaner(); }
+  if(ST.phase === "battle") hostMengemudi();
+  if(ST.winner){ setTimeout(gambarMenang, 1400); }
+  if(ST.hp[myP] < prevHpSaya){ const k = el(myP === "P1" ? "kotak-P1" : "kotak-P2"); if(k){ k.classList.remove("getar"); void k.offsetWidth; k.classList.add("getar"); } if(navigator.vibrate) navigator.vibrate(200); }
+  prevHpSaya = ST.hp[myP];
+}
+
+function hostMengemudi(){
+  if(myP !== "P1" || ST.winner) return;
+  if(!ST.qOpen && ST.resolved[ST.qn] !== undefined || (!ST.qOpen && ST.qn === -1)){
+    if(ST.qn < ST.order.length - 1 && !jadwalQBerikut){
+      jadwalQBerikut = setTimeout(() => {
+        jadwalQBerikut = null;
+        if(ST.winner || ST.qOpen) return;
+        kirim({ t: "q", n: ST.qn + 1, ts: Date.now() + 1500 });
+      }, ST.qn === -1 ? 600 : 2100);
+    }
+  }
+  if(ST.qOpen && !jadwalToHost){
+    const sisa = Math.max(0, ST.qTs + DUEL.QTIME - Date.now());
+    const nIni = ST.qn;
+    jadwalToHost = setTimeout(() => { jadwalToHost = null; if(ST.qOpen && ST.qn === nIni) kirim({ t: "to", n: nIni }); }, sisa + 250);
+  }
+}
+
+function siapkanSoal(){
+  soalTampil = -1; jawabanku = null; kunciUI = false;
+  el("baner").style.display = "none"; el("baner").className = "baner";
+  el("tempat-istilah").innerHTML = `<div class="kecil" style="font-size:17px">⚔️ Soal ${ST.qn + 1} dari ${ST.order.length} — bersiap…</div>`;
+  el("tempat-pilihan").innerHTML = "";
+  el("info-soal").textContent = `Soal ${ST.qn + 1} dari ${ST.order.length}`;
+  const tunda = Math.max(0, ST.qTs - Date.now());
+  setTimeout(() => { if(ST.qOpen && ST.qn >= 0) tampilSoal(); }, tunda);
+}
+
+function tampilSoal(){
+  const soal = BANK[ST.order[ST.qn]]; if(!soal) return;
+  soalTampil = ST.qn;
+  el("tempat-istilah").innerHTML = `<div class="jp"><ruby>${esc(soal.jp)}<rt>${esc(soal.yomi)}</rt></ruby></div><div class="kecil">Istilah ini artinya…?</div>`;
+  const pil = acak(soal.pil);
+  el("tempat-pilihan").innerHTML = pil.map(p => `<button class="pilihan" data-p="${esc(p)}">${esc(p)}</button>`).join("");
+  el("tempat-pilihan").querySelectorAll("button").forEach(b => b.onclick = () => jawab(b.dataset.p, b));
+  clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const sisa = ST.qTs + DUEL.QTIME - Date.now();
+    el("palang-waktu").style.width = Math.max(0, sisa / DUEL.QTIME * 100) + "%";
+    el("detik").textContent = Math.max(0, Math.ceil(sisa / 1000)) + " detik";
+    if(sisa <= 0) clearInterval(timerInterval);
+  }, 100);
+}
+
+function jawab(pilihan, tombol){
+  if(!ST.qOpen || soalTampil !== ST.qn || jawabanku !== null || kunciUI) return;
+  const soal = BANK[ST.order[ST.qn]];
+  const ok = pilihan === soal.benar;
+  jawabanku = pilihan;
+  tombol.classList.add(ok ? "benarPilih" : "salahPilih");
+  if(!ok){ kunciUI = true; el("tempat-pilihan").querySelectorAll("button").forEach(b => b.disabled = true); }
+  kirim({ t: "ans", n: ST.qn, p: myP, ok });
+}
+
+function gambarPetarung(){
+  el("nama-P1").textContent = namaP("P1"); el("nama-P2").textContent = namaP("P2");
+  el("hp-P1").textContent = hati(ST.hp.P1); el("hp-P2").textContent = hati(ST.hp.P2);
+  if(ST.qn >= 0) el("info-soal").textContent = `Soal ${Math.min(ST.qn + 1, ST.order.length)} dari ${ST.order.length}`;
+}
+
+function gambarBaner(){
+  const b = el("baner"); const r = ST.resolved[ST.qn];
+  if(ST.qOpen || r === undefined){ return; }
+  clearInterval(timerInterval); el("palang-waktu").style.width = "0%"; el("detik").textContent = "";
+  el("tempat-pilihan").querySelectorAll("button").forEach(x => x.disabled = true);
+  if(r === "none"){ b.className = "baner netral"; b.textContent = "⏱️ Tidak ada serangan yang kena — lanjut soal berikutnya!"; }
+  else if(r === myP){ b.className = "baner kena"; b.textContent = "⚔️ KENA! Seranganmu masuk — nyawa lawan berkurang!"; if(navigator.vibrate) navigator.vibrate(80); }
+  else { b.className = "baner meleset"; b.textContent = `💥 Kena serangan ${namaP(r)}! Nyawamu berkurang.`; }
+  b.style.display = "block";
+}
+
+function gambarMenang(){
+  if(!ST.winner) return;
+  tampil("layar-menang");
+  if(ST.winner === "seri"){
+    el("trofi").textContent = "🤝"; el("nama-pemenang").textContent = "SERI!";
+    el("ringkas-akhir").innerHTML = `Dua pejuang sama kuat.<br>🔴 ${esc(namaP("P1"))}: ${hati(ST.hp.P1)}<br>🔵 ${esc(namaP("P2"))}: ${hati(ST.hp.P2)}`;
+  } else {
+    el("trofi").textContent = "🏆";
+    el("nama-pemenang").textContent = namaP(ST.winner) + (ST.winner === myP ? " — KAMU!" : "");
+    el("ringkas-akhir").innerHTML = `🔴 ${esc(namaP("P1"))}: ${hati(ST.hp.P1)}<br>🔵 ${esc(namaP("P2"))}: ${hati(ST.hp.P2)}`;
+  }
+}
+
+sambung();
+</script>
+</body></html>
